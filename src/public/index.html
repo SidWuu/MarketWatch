@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MarketWatch</title>
+    <link rel="icon" href="/favicon.svg" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>MarketWatch</h1>
+        <p id="sourceLine">连接行情中</p>
+      </div>
+      <div class="top-actions">
+        <button id="notifyButton" class="icon-button" title="开启桌面通知">铃</button>
+        <button id="refreshButton" class="icon-button" title="立即刷新">刷</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="market-panel">
+        <div class="panel-head">
+          <h2>自选盯盘</h2>
+          <form id="watchForm" class="inline-form">
+            <input id="watchSymbol" autocomplete="off" placeholder="代码 / sh000001" />
+            <button title="加入自选">+</button>
+          </form>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>名称</th>
+                <th>最新</th>
+                <th>涨跌幅</th>
+                <th>涨速</th>
+                <th>成交额</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="quoteRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <aside class="side">
+        <section class="rule-panel">
+          <div class="panel-head">
+            <h2>提醒规则</h2>
+          </div>
+          <form id="ruleForm" class="rule-form">
+            <select id="ruleSymbol"></select>
+            <select id="ruleType"></select>
+            <input id="ruleThreshold" inputmode="decimal" placeholder="阈值" />
+            <button title="创建提醒">+</button>
+          </form>
+          <div id="ruleList" class="rule-list"></div>
+        </section>
+
+        <section class="event-panel">
+          <div class="panel-head">
+            <h2>异动事件</h2>
+            <button id="clearEvents" class="icon-button small" title="清空事件">清</button>
+          </div>
+          <div id="eventList" class="event-list"></div>
+        </section>
+      </aside>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
