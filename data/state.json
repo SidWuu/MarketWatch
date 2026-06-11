@@ -7,5 +7,16 @@
     "300750",
     "600519"
   ],
-  "rules": []
+  "rules": [],
+  "trading": {
+    "paperAccount": {
+      "mode": "PAPER",
+      "currency": "CNY",
+      "cash": 1000000,
+      "positions": {},
+      "orders": [],
+      "orderDrafts": []
+    },
+    "auditLog": []
+  }
 }

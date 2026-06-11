@@ -3,9 +3,12 @@ import { stat } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
 
+import { appendAuditEvent } from "./audit-log.js";
+import { listAgentToolPolicies, requireAgentPermission } from "./agent-tools.js";
 import { fetchQuotes, normalizeSymbol } from "./market-data.js";
 import { evaluateRules, listRuleTypes } from "./rules.js";
 import { JsonStore } from "./store.js";
+import { createOrderDraft, executePaperOrder, normalizeOrderInput, summarizeAccount } from "./trading.js";
 import { validateRuleInput, validateWatchSymbol } from "./validation.js";
 
 const PORT = Number(process.env.PORT || 4177);
@@ -26,7 +29,16 @@ const server = createServer(async (request, response) => {
     }
 
     if (url.pathname === "/api/state" && request.method === "GET") {
-      return sendJson(response, { ...state, ruleTypes: listRuleTypes(), quotes: lastQuotes });
+      return sendJson(response, {
+        ...state,
+        ruleTypes: listRuleTypes(),
+        quotes: lastQuotes,
+        trading: {
+          ...state.trading,
+          paperAccount: summarizeAccount(state.trading.paperAccount, lastQuotes)
+        },
+        agentToolPolicies: listAgentToolPolicies()
+      });
     }
 
     if (url.pathname === "/api/watchlist" && request.method === "POST") {
@@ -73,6 +85,54 @@ const server = createServer(async (request, response) => {
 
     if (url.pathname === "/api/events" && request.method === "GET") {
       return openEventStream(request, response);
+    }
+
+    if (url.pathname === "/api/trading/account" && request.method === "GET") {
+      return sendJson(response, {
+        account: summarizeAccount(state.trading.paperAccount, lastQuotes),
+        auditLog: state.trading.auditLog
+      });
+    }
+
+    if (url.pathname === "/api/trading/order-drafts" && request.method === "POST") {
+      requireAgentPermission("order.draft");
+      const body = await readJson(request);
+      const input = normalizeOrderInput({ ...body, source: body.source || "AGENT" });
+      const quote = findQuote(input.instrumentId);
+      const draft = createOrderDraft(input, quote);
+      state.trading.paperAccount.orderDrafts = [draft, ...(state.trading.paperAccount.orderDrafts || [])];
+      state = appendAuditEvent(state, {
+        actor: draft.source,
+        action: "ORDER_DRAFT_CREATE",
+        payload: draft,
+        result: { status: draft.status }
+      });
+      state = await store.save(state);
+      return sendJson(response, { draft, account: summarizeAccount(state.trading.paperAccount, lastQuotes) }, 201);
+    }
+
+    if (url.pathname === "/api/trading/orders" && request.method === "POST") {
+      const body = await readJson(request);
+      const input = normalizeOrderInput(body);
+      if (input.source === "AGENT" && body.confirm !== true) {
+        return sendJson(response, { error: "Agent orders require explicit confirmation" }, 409);
+      }
+
+      const quote = findQuote(input.instrumentId);
+      const result = executePaperOrder(state.trading.paperAccount, input, quote);
+      state.trading.paperAccount = result.account;
+      state = appendAuditEvent(state, {
+        actor: input.source,
+        action: "PAPER_ORDER_EXECUTE",
+        payload: input,
+        result: result.order
+      });
+      state = await store.save(state);
+      return sendJson(response, { order: result.order, account: summarizeAccount(state.trading.paperAccount, lastQuotes) });
+    }
+
+    if (url.pathname === "/api/agent/tools" && request.method === "GET") {
+      return sendJson(response, { tools: listAgentToolPolicies() });
     }
 
     return serveStatic(url.pathname, response);
@@ -161,5 +221,9 @@ function upsertWatchSymbol(watchlist, rawSymbol, instrumentId) {
 }
 
 function isClientError(error) {
-  return /Unsupported symbol|Unsupported rule type|threshold must be a number/.test(error.message);
+  return /Unsupported symbol|Unsupported rule type|threshold must be a number|Unsupported order|quantity must|limitPrice must|Agent tool is denied/.test(error.message);
+}
+
+function findQuote(instrumentId) {
+  return lastQuotes.find((quote) => quote.instrumentId === instrumentId);
 }

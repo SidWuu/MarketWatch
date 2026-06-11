@@ -18,6 +18,9 @@
   - 成交额超过
 - 通过 SSE 推送行情刷新和提醒事件。
 - 本地保存自选列表和提醒规则。
+- 纸面交易账户：支持订单草稿、模拟成交、拒单、持仓和现金更新。
+- Agent 工具权限表：只读允许、订单草稿需确认、直接执行订单禁止。
+- 交易审计日志：记录订单草稿和纸面订单执行结果。
 - 浏览器桌面通知授权后，可弹出提醒通知。
 
 ## 运行方式
@@ -47,6 +50,9 @@ MarketWatch/
   src/server/index.js          HTTP API、静态文件服务、SSE 推送
   src/server/market-data.js    行情源接入、代码标准化、演示数据兜底
   src/server/rules.js          提醒规则引擎
+  src/server/trading.js        纸面交易订单模型和账户更新
+  src/server/agent-tools.js    Agent 工具权限表
+  src/server/audit-log.js      审计日志追加逻辑
   src/server/store.js          JSON 本地存储
   src/public/                  前端页面
   test/                        Node test 单元测试
@@ -61,6 +67,10 @@ MarketWatch/
 - `POST /api/rules`：添加提醒规则。
 - `DELETE /api/rules/:id`：删除提醒规则。
 - `GET /api/events`：SSE 事件流。
+- `GET /api/trading/account`：获取纸面账户、持仓、订单、审计日志。
+- `POST /api/trading/order-drafts`：创建候选订单草稿，默认用于 Agent 建议。
+- `POST /api/trading/orders`：执行纸面订单。`source=AGENT` 时必须传 `confirm=true`。
+- `GET /api/agent/tools`：查看 Agent 工具权限表。
 
 ## 自动交易目标架构
 

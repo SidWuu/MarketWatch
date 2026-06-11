@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { normalizeSymbol } from "./market-data.js";
+import { cloneAccount, DEFAULT_PAPER_ACCOUNT } from "./trading.js";
 
 const DEFAULT_STATE = {
   watchlist: ["sh000001", "sz399001", "sz399006", "000001", "300750", "600519"],
@@ -14,7 +15,11 @@ const DEFAULT_STATE = {
       threshold: 2.5,
       enabled: true
     }
-  ]
+  ],
+  trading: {
+    paperAccount: DEFAULT_PAPER_ACCOUNT,
+    auditLog: []
+  }
 };
 
 export class JsonStore {
@@ -58,7 +63,15 @@ function sanitizeState(state) {
       type: String(rule.type || "price-above"),
       threshold: Number(rule.threshold),
       enabled: rule.enabled !== false
-    }))
+    })),
+    trading: sanitizeTrading(state.trading)
+  };
+}
+
+function sanitizeTrading(trading = DEFAULT_STATE.trading) {
+  return {
+    paperAccount: cloneAccount(trading.paperAccount || DEFAULT_PAPER_ACCOUNT),
+    auditLog: Array.isArray(trading.auditLog) ? trading.auditLog.slice(0, 500) : []
   };
 }
 
