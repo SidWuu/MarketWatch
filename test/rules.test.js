@@ -6,14 +6,14 @@ import { evaluateRules } from "../src/server/rules.js";
 test("emits a price above alert once per crossing", () => {
   const rule = {
     id: "r1",
-    symbol: "000001",
+    instrumentId: "0.000001",
     type: "price-above",
     threshold: 10,
     enabled: true
   };
 
-  const first = evaluateRules([rule], [{ symbol: "000001", price: 10.01 }], new Map());
-  const second = evaluateRules([rule], [{ symbol: "000001", price: 10.20 }], first.state);
+  const first = evaluateRules([rule], [{ instrumentId: "0.000001", symbol: "000001", name: "平安银行", price: 10.01 }], new Map());
+  const second = evaluateRules([rule], [{ instrumentId: "0.000001", symbol: "000001", name: "平安银行", price: 10.20 }], first.state);
 
   assert.equal(first.alerts.length, 1);
   assert.equal(first.alerts[0].severity, "danger");
@@ -23,15 +23,15 @@ test("emits a price above alert once per crossing", () => {
 test("resets a price alert after condition becomes false", () => {
   const rule = {
     id: "r2",
-    symbol: "000001",
+    instrumentId: "0.000001",
     type: "price-below",
     threshold: 9,
     enabled: true
   };
 
-  const first = evaluateRules([rule], [{ symbol: "000001", price: 8.99 }], new Map());
-  const reset = evaluateRules([rule], [{ symbol: "000001", price: 9.10 }], first.state);
-  const second = evaluateRules([rule], [{ symbol: "000001", price: 8.95 }], reset.state);
+  const first = evaluateRules([rule], [{ instrumentId: "0.000001", symbol: "000001", name: "平安银行", price: 8.99 }], new Map());
+  const reset = evaluateRules([rule], [{ instrumentId: "0.000001", symbol: "000001", name: "平安银行", price: 9.10 }], first.state);
+  const second = evaluateRules([rule], [{ instrumentId: "0.000001", symbol: "000001", name: "平安银行", price: 8.95 }], reset.state);
 
   assert.equal(first.alerts.length, 1);
   assert.equal(reset.alerts.length, 0);
@@ -40,13 +40,13 @@ test("resets a price alert after condition becomes false", () => {
 
 test("supports percent and turnover alerts", () => {
   const rules = [
-    { id: "pct", symbol: "300750", type: "pct-change-above", threshold: 3, enabled: true },
-    { id: "amount", symbol: "300750", type: "amount-above", threshold: 1000000000, enabled: true }
+    { id: "pct", instrumentId: "0.300750", type: "pct-change-above", threshold: 3, enabled: true },
+    { id: "amount", instrumentId: "0.300750", type: "amount-above", threshold: 1000000000, enabled: true }
   ];
 
   const result = evaluateRules(
     rules,
-    [{ symbol: "300750", price: 260, pctChange: 3.2, amount: 1200000000 }],
+    [{ instrumentId: "0.300750", symbol: "300750", name: "宁德时代", price: 260, pctChange: 3.2, amount: 1200000000 }],
     new Map()
   );
 
@@ -54,4 +54,14 @@ test("supports percent and turnover alerts", () => {
     result.alerts.map((alert) => alert.ruleId),
     ["pct", "amount"]
   );
+});
+
+test("does not trigger stock rule from same-code index quote", () => {
+  const result = evaluateRules(
+    [{ id: "stock", instrumentId: "0.000001", type: "price-above", threshold: 10, enabled: true }],
+    [{ instrumentId: "1.000001", symbol: "000001", name: "上证指数", price: 3990 }],
+    new Map()
+  );
+
+  assert.equal(result.alerts.length, 0);
 });

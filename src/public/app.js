@@ -111,7 +111,7 @@ function renderQuotes() {
           <td class="${quote.speed > 0 ? "up" : quote.speed < 0 ? "down" : "flat"}">${formatPct(quote.speed)}</td>
           <td>${formatAmount(quote.amount)}</td>
           <td>
-            <button class="remove-button" data-remove-watch="${quote.symbol}" title="移除">-</button>
+            <button class="remove-button" data-remove-watch="${quote.instrumentId}" title="移除">-</button>
           </td>
         </tr>
       `;
@@ -128,7 +128,7 @@ function renderQuotes() {
 
 function renderRuleOptions() {
   els.ruleSymbol.innerHTML = state.quotes
-    .map((quote) => `<option value="${quote.symbol}">${quote.name} ${quote.symbol}</option>`)
+    .map((quote) => `<option value="${quote.instrumentId}">${quote.name} ${quote.symbol}</option>`)
     .join("");
   els.ruleType.innerHTML = state.ruleTypes
     .map((type) => `<option value="${type.value}">${type.label}</option>`)
@@ -141,14 +141,14 @@ function renderRules() {
     return;
   }
 
-  const quoteNames = new Map(state.quotes.map((quote) => [quote.symbol, quote.name]));
+  const quoteNames = new Map(state.quotes.map((quote) => [quote.instrumentId, quote.name]));
   els.ruleList.innerHTML = state.rules
     .map((rule) => {
       const type = state.ruleTypes.find((item) => item.value === rule.type);
       return `
         <div class="rule-item">
           <div>
-            <strong>${escapeHtml(quoteNames.get(rule.symbol) || rule.symbol)}</strong>
+            <strong>${escapeHtml(quoteNames.get(rule.instrumentId) || rule.symbol)}</strong>
             <div class="meta">${escapeHtml(type?.label || rule.type)} · ${rule.threshold}</div>
           </div>
           <button data-remove-rule="${rule.id}" title="删除规则">-</button>

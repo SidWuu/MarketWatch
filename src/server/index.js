@@ -6,6 +6,7 @@ import { extname, join, normalize } from "node:path";
 import { fetchQuotes, normalizeSymbol } from "./market-data.js";
 import { evaluateRules, listRuleTypes } from "./rules.js";
 import { JsonStore } from "./store.js";
+import { validateRuleInput, validateWatchSymbol } from "./validation.js";
 
 const PORT = Number(process.env.PORT || 4177);
 const PUBLIC_DIR = join(process.cwd(), "src", "public");
@@ -30,17 +31,17 @@ const server = createServer(async (request, response) => {
 
     if (url.pathname === "/api/watchlist" && request.method === "POST") {
       const body = await readJson(request);
-      normalizeSymbol(body.symbol);
-      state.watchlist = [...new Set([...state.watchlist, String(body.symbol).trim()])];
+      const identity = validateWatchSymbol(body.symbol);
+      state.watchlist = upsertWatchSymbol(state.watchlist, body.symbol, identity.instrumentId);
       state = await store.save(state);
       await refreshQuotes();
       return sendJson(response, state);
     }
 
     if (url.pathname.startsWith("/api/watchlist/") && request.method === "DELETE") {
-      const symbol = decodeURIComponent(url.pathname.slice("/api/watchlist/".length));
-      state.watchlist = state.watchlist.filter((item) => item !== symbol);
-      state.rules = state.rules.filter((rule) => rule.symbol !== normalizeSymbol(symbol).symbol);
+      const instrumentId = decodeURIComponent(url.pathname.slice("/api/watchlist/".length));
+      state.watchlist = state.watchlist.filter((item) => normalizeSymbol(item).instrumentId !== instrumentId);
+      state.rules = state.rules.filter((rule) => rule.instrumentId !== instrumentId);
       state = await store.save(state);
       await refreshQuotes();
       return sendJson(response, state);
@@ -48,17 +49,15 @@ const server = createServer(async (request, response) => {
 
     if (url.pathname === "/api/rules" && request.method === "POST") {
       const body = await readJson(request);
-      const normalized = normalizeSymbol(body.symbol);
+      const input = validateRuleInput(body);
       const rule = {
         id: crypto.randomUUID(),
-        symbol: normalized.symbol,
-        type: String(body.type),
-        threshold: Number(body.threshold),
+        instrumentId: input.instrumentId,
+        symbol: input.symbol,
+        type: input.type,
+        threshold: input.threshold,
         enabled: true
       };
-      if (!Number.isFinite(rule.threshold)) {
-        return sendJson(response, { error: "threshold must be a number" }, 400);
-      }
       state.rules = [...state.rules, rule];
       state = await store.save(state);
       return sendJson(response, state);
@@ -78,7 +77,8 @@ const server = createServer(async (request, response) => {
 
     return serveStatic(url.pathname, response);
   } catch (error) {
-    return sendJson(response, { error: error.message }, 500);
+    const status = isClientError(error) ? 400 : 500;
+    return sendJson(response, { error: error.message }, status);
   }
 });
 
@@ -153,4 +153,13 @@ async function readJson(request) {
 function sendJson(response, data, status = 200) {
   response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
   response.end(JSON.stringify(data));
+}
+
+function upsertWatchSymbol(watchlist, rawSymbol, instrumentId) {
+  const next = watchlist.filter((item) => normalizeSymbol(item).instrumentId !== instrumentId);
+  return [...next, String(rawSymbol).trim()];
+}
+
+function isClientError(error) {
+  return /Unsupported symbol|Unsupported rule type|threshold must be a number/.test(error.message);
 }

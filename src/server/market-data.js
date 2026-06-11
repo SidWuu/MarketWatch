@@ -12,24 +12,37 @@ const EASTMONEY_FIELDS = [
 ].join(",");
 
 const DEMO_BASE = new Map([
-  ["sh000001", { symbol: "000001", name: "上证指数", price: 3096.58, sector: "指数" }],
-  ["sz399001", { symbol: "399001", name: "深证成指", price: 9362.12, sector: "指数" }],
-  ["sz399006", { symbol: "399006", name: "创业板指", price: 1818.75, sector: "指数" }],
-  ["000001", { symbol: "000001", name: "平安银行", price: 10.12, sector: "银行" }],
-  ["300750", { symbol: "300750", name: "宁德时代", price: 260.3, sector: "电池" }],
-  ["600519", { symbol: "600519", name: "贵州茅台", price: 1518.8, sector: "白酒" }]
+  ["1.000001", { instrumentId: "1.000001", symbol: "000001", market: "SH", name: "上证指数", price: 3096.58, sector: "指数" }],
+  ["0.399001", { instrumentId: "0.399001", symbol: "399001", market: "SZ", name: "深证成指", price: 9362.12, sector: "指数" }],
+  ["0.399006", { instrumentId: "0.399006", symbol: "399006", market: "SZ", name: "创业板指", price: 1818.75, sector: "指数" }],
+  ["0.000001", { instrumentId: "0.000001", symbol: "000001", market: "SZ", name: "平安银行", price: 10.12, sector: "银行" }],
+  ["0.300750", { instrumentId: "0.300750", symbol: "300750", market: "SZ", name: "宁德时代", price: 260.3, sector: "电池" }],
+  ["1.600519", { instrumentId: "1.600519", symbol: "600519", market: "SH", name: "贵州茅台", price: 1518.8, sector: "白酒" }]
 ]);
 
 export function normalizeSymbol(input) {
   const raw = String(input || "").trim().toLowerCase();
   const compact = raw.replace(/\s+/g, "");
 
+  if (/^[01]\.\d{6}$/.test(compact)) {
+    const [marketCode, symbol] = compact.split(".");
+    return {
+      input,
+      symbol,
+      instrumentId: compact,
+      secid: compact,
+      market: marketCode === "1" ? "SH" : "SZ"
+    };
+  }
+
   if (/^sh\d{6}$/.test(compact)) {
-    return { input, symbol: compact.slice(2), secid: `1.${compact.slice(2)}`, market: "SH" };
+    const symbol = compact.slice(2);
+    return { input, symbol, instrumentId: `1.${symbol}`, secid: `1.${symbol}`, market: "SH" };
   }
 
   if (/^sz\d{6}$/.test(compact)) {
-    return { input, symbol: compact.slice(2), secid: `0.${compact.slice(2)}`, market: "SZ" };
+    const symbol = compact.slice(2);
+    return { input, symbol, instrumentId: `0.${symbol}`, secid: `0.${symbol}`, market: "SZ" };
   }
 
   if (!/^\d{6}$/.test(compact)) {
@@ -37,10 +50,10 @@ export function normalizeSymbol(input) {
   }
 
   if (compact.startsWith("6") || compact.startsWith("9")) {
-    return { input, symbol: compact, secid: `1.${compact}`, market: "SH" };
+    return { input, symbol: compact, instrumentId: `1.${compact}`, secid: `1.${compact}`, market: "SH" };
   }
 
-  return { input, symbol: compact, secid: `0.${compact}`, market: "SZ" };
+  return { input, symbol: compact, instrumentId: `0.${compact}`, secid: `0.${compact}`, market: "SZ" };
 }
 
 export function buildEastmoneyUrl(symbols) {
@@ -62,8 +75,12 @@ export function parseEastmoneyQuoteList(payload) {
   }
 
   return rows
-    .map((row) => ({
-      symbol: String(row.f12),
+    .map((row) => {
+      const identity = identityFromEastmoneyRow(row);
+      return {
+      instrumentId: identity.instrumentId,
+      symbol: identity.symbol,
+      market: identity.market,
       name: String(row.f14 || row.f12),
       price: toNumber(row.f2),
       pctChange: toNumber(row.f3),
@@ -72,7 +89,8 @@ export function parseEastmoneyQuoteList(payload) {
       amount: toNumber(row.f6),
       speed: toNumber(row.f10),
       sector: String(row.f100 || "")
-    }))
+    };
+    })
     .filter((quote) => Number.isFinite(quote.price));
 }
 
@@ -117,8 +135,8 @@ function enrichQuotes(quotes, source) {
 }
 
 function mergeMissingQuotes(symbols, quotes) {
-  const returned = new Set(quotes.map((quote) => quote.symbol));
-  const missing = symbols.filter((symbol) => !returned.has(normalizeSymbol(symbol).symbol));
+  const returned = new Set(quotes.map((quote) => quote.instrumentId));
+  const missing = symbols.filter((symbol) => !returned.has(normalizeSymbol(symbol).instrumentId));
   if (missing.length === 0) {
     return quotes;
   }
@@ -138,9 +156,12 @@ function createDemoQuotes(symbols, error) {
 
   return symbols.map((raw, index) => {
     const key = String(raw).trim().toLowerCase();
-    const base = DEMO_BASE.get(key) ?? DEMO_BASE.get(normalizeSymbol(key).symbol) ?? {
-      symbol: normalizeSymbol(key).symbol,
-      name: normalizeSymbol(key).symbol,
+    const identity = normalizeSymbol(key);
+    const base = DEMO_BASE.get(identity.instrumentId) ?? {
+      instrumentId: identity.instrumentId,
+      symbol: identity.symbol,
+      market: identity.market,
+      name: identity.symbol,
       price: 20 + index * 3,
       sector: "自选"
     };
@@ -148,7 +169,9 @@ function createDemoQuotes(symbols, error) {
     const price = round2(base.price * (1 + pctChange / 100));
 
     return {
+      instrumentId: base.instrumentId,
       symbol: base.symbol,
+      market: base.market,
       name: base.name,
       price,
       pctChange,
@@ -162,6 +185,15 @@ function createDemoQuotes(symbols, error) {
       updatedAt: new Date().toISOString()
     };
   });
+}
+
+function identityFromEastmoneyRow(row) {
+  const symbol = String(row.f12);
+  const marketCode = Number(row.f13);
+  if (marketCode === 1) {
+    return { instrumentId: `1.${symbol}`, symbol, market: "SH" };
+  }
+  return { instrumentId: `0.${symbol}`, symbol, market: "SZ" };
 }
 
 function toNumber(value) {

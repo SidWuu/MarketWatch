@@ -10,6 +10,17 @@ test("normalizes common A-share and index symbols to Eastmoney secids", () => {
   assert.equal(normalizeSymbol("sz399001").secid, "0.399001");
 });
 
+test("keeps index and stock identities separate when display symbols collide", () => {
+  const index = normalizeSymbol("sh000001");
+  const stock = normalizeSymbol("000001");
+
+  assert.equal(index.symbol, "000001");
+  assert.equal(stock.symbol, "000001");
+  assert.equal(index.instrumentId, "1.000001");
+  assert.equal(stock.instrumentId, "0.000001");
+  assert.notEqual(index.instrumentId, stock.instrumentId);
+});
+
 test("builds an Eastmoney quote URL for a watchlist", () => {
   const url = buildEastmoneyUrl(["sh000001", "000001"]);
 
@@ -22,7 +33,7 @@ test("parses Eastmoney quote rows and filters unavailable prices", () => {
   const payload = {
     data: {
       diff: [
-        { f12: "000001", f14: "平安银行", f2: 10.12, f3: 1.2, f4: 0.12, f5: 123456, f6: 456789000, f10: 1.1, f100: "银行" },
+        { f13: 0, f12: "000001", f14: "平安银行", f2: 10.12, f3: 1.2, f4: 0.12, f5: 123456, f6: 456789000, f10: 1.1, f100: "银行" },
         { f12: "000002", f14: "坏数据", f2: "-", f3: "-", f4: "-", f5: "-", f6: "-", f10: "-", f100: "地产" }
       ]
     }
@@ -32,7 +43,9 @@ test("parses Eastmoney quote rows and filters unavailable prices", () => {
 
   assert.equal(quotes.length, 1);
   assert.deepEqual(quotes[0], {
+    instrumentId: "0.000001",
     symbol: "000001",
+    market: "SZ",
     name: "平安银行",
     price: 10.12,
     pctChange: 1.2,

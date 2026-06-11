@@ -1,11 +1,14 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
+import { normalizeSymbol } from "./market-data.js";
+
 const DEFAULT_STATE = {
   watchlist: ["sh000001", "sz399001", "sz399006", "000001", "300750", "600519"],
   rules: [
     {
       id: "demo-pct-300750",
+      instrumentId: "0.300750",
       symbol: "300750",
       type: "pct-change-above",
       threshold: 2.5,
@@ -22,7 +25,11 @@ export class JsonStore {
   async load() {
     try {
       const text = await readFile(this.filePath, "utf8");
-      return sanitizeState(JSON.parse(text));
+      try {
+        return sanitizeState(JSON.parse(text));
+      } catch (error) {
+        throw new Error(`State file is not valid JSON: ${error.message}`);
+      }
     } catch (error) {
       if (error.code !== "ENOENT") {
         throw error;
@@ -41,14 +48,44 @@ export class JsonStore {
 }
 
 function sanitizeState(state) {
+  const watchlist = dedupeWatchlist(state.watchlist || DEFAULT_STATE.watchlist);
   return {
-    watchlist: [...new Set((state.watchlist || DEFAULT_STATE.watchlist).map((symbol) => String(symbol).trim()).filter(Boolean))],
+    watchlist,
     rules: (state.rules || []).map((rule) => ({
       id: String(rule.id || crypto.randomUUID()),
-      symbol: String(rule.symbol || "").trim(),
+      instrumentId: normalizeRuleInstrumentId(rule),
+      symbol: normalizeRuleSymbol(rule),
       type: String(rule.type || "price-above"),
       threshold: Number(rule.threshold),
       enabled: rule.enabled !== false
     }))
   };
+}
+
+function dedupeWatchlist(watchlist) {
+  const byId = new Map();
+  for (const raw of watchlist) {
+    const text = String(raw).trim();
+    if (!text) continue;
+    const normalized = normalizeSymbol(text);
+    if (!byId.has(normalized.instrumentId)) {
+      byId.set(normalized.instrumentId, text.toLowerCase());
+    }
+  }
+  return [...byId.values()];
+}
+
+function normalizeRuleInstrumentId(rule) {
+  if (rule.instrumentId) {
+    return String(rule.instrumentId);
+  }
+  return normalizeSymbol(rule.symbol).instrumentId;
+}
+
+function normalizeRuleSymbol(rule) {
+  if (rule.symbol) {
+    return normalizeSymbol(rule.symbol).symbol;
+  }
+  const instrumentId = String(rule.instrumentId || "");
+  return instrumentId.includes(".") ? instrumentId.split(".")[1] : instrumentId;
 }

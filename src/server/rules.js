@@ -45,7 +45,7 @@ export function listRuleTypes() {
 }
 
 export function evaluateRules(rules, quotes, previousState = new Map()) {
-  const quotesBySymbol = new Map(quotes.map((quote) => [quote.symbol, quote]));
+  const quotesByInstrumentId = new Map(quotes.map((quote) => [quote.instrumentId ?? quote.symbol, quote]));
   const nextState = new Map(previousState);
   const alerts = [];
 
@@ -55,7 +55,7 @@ export function evaluateRules(rules, quotes, previousState = new Map()) {
       continue;
     }
 
-    const quote = quotesBySymbol.get(rule.symbol);
+    const quote = quotesByInstrumentId.get(rule.instrumentId ?? rule.symbol);
     const definition = RULE_DEFINITIONS[rule.type];
     const threshold = Number(rule.threshold);
     if (!quote || !definition || !Number.isFinite(threshold)) {
@@ -70,7 +70,8 @@ export function evaluateRules(rules, quotes, previousState = new Map()) {
       alerts.push({
         id: `${rule.id}-${Date.now()}`,
         ruleId: rule.id,
-        symbol: rule.symbol,
+        instrumentId: quote.instrumentId,
+        symbol: quote.symbol,
         name: quote.name,
         message: definition.describe(quote, threshold),
         severity: definition.severity,
