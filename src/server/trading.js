@@ -69,13 +69,16 @@ export function executePaperOrder(account, input, quote) {
 
   const price = chooseExecutionPrice(input, quote);
   if (price === null) {
+    const order = buildOrder(input, quote, {
+      status: "OPEN",
+      filledQuantity: 0,
+      avgFillPrice: null
+    });
+    const next = cloneAccount(account);
+    next.orders = [order, ...(next.orders || [])];
     return {
-      account: cloneAccount(account),
-      order: buildOrder(input, quote, {
-        status: "OPEN",
-        filledQuantity: 0,
-        avgFillPrice: null
-      })
+      account: next,
+      order
     };
   }
 
@@ -220,6 +223,28 @@ export function cloneAccount(account = DEFAULT_PAPER_ACCOUNT) {
     orders: structuredClone(account.orders || []),
     orderDrafts: structuredClone(account.orderDrafts || [])
   };
+}
+
+export function cancelPaperOrder(account, orderId, reason = "USER_REQUEST") {
+  const next = cloneAccount(account);
+  const index = next.orders.findIndex((order) => order.id === orderId);
+  if (index === -1) {
+    throw new Error(`Order not found: ${orderId}`);
+  }
+
+  const order = next.orders[index];
+  if (order.status !== "OPEN") {
+    throw new Error("Only OPEN orders can be cancelled");
+  }
+
+  const cancelled = {
+    ...order,
+    status: "CANCELLED",
+    cancelReason: String(reason || "USER_REQUEST"),
+    cancelledAt: new Date().toISOString()
+  };
+  next.orders[index] = cancelled;
+  return { account: next, order: cancelled };
 }
 
 function roundMoney(value) {

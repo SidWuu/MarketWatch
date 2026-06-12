@@ -9,7 +9,7 @@ import { fetchQuotes, normalizeSymbol } from "./market-data.js";
 import { evaluateRiskControls, updateRiskControls } from "./risk-controls.js";
 import { evaluateRules, listRuleTypes } from "./rules.js";
 import { JsonStore } from "./store.js";
-import { createOrderDraft, executePaperOrder, normalizeOrderInput, summarizeAccount } from "./trading.js";
+import { cancelPaperOrder, createOrderDraft, executePaperOrder, normalizeOrderInput, summarizeAccount } from "./trading.js";
 import { validateRuleInput, validateWatchSymbol } from "./validation.js";
 
 const PORT = Number(process.env.PORT || 4177);
@@ -186,6 +186,21 @@ const server = createServer(async (request, response) => {
         actor: input.source,
         action: "PAPER_ORDER_EXECUTE",
         payload: input,
+        result: result.order
+      });
+      state = await store.save(state);
+      return sendJson(response, { order: result.order, account: summarizeAccount(state.trading.paperAccount, lastQuotes) });
+    }
+
+    if (url.pathname.startsWith("/api/trading/orders/") && request.method === "DELETE") {
+      const orderId = decodeURIComponent(url.pathname.slice("/api/trading/orders/".length));
+      const body = await readJson(request);
+      const result = cancelPaperOrder(state.trading.paperAccount, orderId, body.reason || "USER_REQUEST");
+      state.trading.paperAccount = result.account;
+      state = appendAuditEvent(state, {
+        actor: String(body.actor || "UI").toUpperCase(),
+        action: "PAPER_ORDER_CANCEL",
+        payload: { orderId, reason: body.reason || "USER_REQUEST" },
         result: result.order
       });
       state = await store.save(state);
