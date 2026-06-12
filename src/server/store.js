@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { normalizeSymbol } from "./market-data.js";
+import { DEFAULT_RISK_CONTROLS, normalizeRiskControls } from "./risk-controls.js";
 import { cloneAccount, DEFAULT_PAPER_ACCOUNT } from "./trading.js";
 
 const DEFAULT_STATE = {
@@ -18,6 +19,7 @@ const DEFAULT_STATE = {
   ],
   trading: {
     paperAccount: DEFAULT_PAPER_ACCOUNT,
+    riskControls: DEFAULT_RISK_CONTROLS,
     auditLog: []
   }
 };
@@ -71,6 +73,7 @@ function sanitizeState(state) {
 function sanitizeTrading(trading = DEFAULT_STATE.trading) {
   return {
     paperAccount: cloneAccount(trading.paperAccount || DEFAULT_PAPER_ACCOUNT),
+    riskControls: normalizeRiskControls(trading.riskControls || DEFAULT_RISK_CONTROLS),
     auditLog: Array.isArray(trading.auditLog) ? trading.auditLog.slice(0, 500) : []
   };
 }

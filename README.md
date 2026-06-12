@@ -19,6 +19,7 @@
 - 通过 SSE 推送行情刷新和提醒事件。
 - 本地保存自选列表和提醒规则。
 - 纸面交易账户：支持订单草稿、模拟成交、拒单、持仓和现金更新。
+- 硬风控基础版：自动执行默认关闭、紧急停止、单笔金额限制、单标的持仓数量限制、黑名单、非交易时段拦截开关。
 - Agent 工具权限表：只读允许、订单草稿需确认、直接执行订单禁止。
 - 交易审计日志：记录订单草稿和纸面订单执行结果。
 - 浏览器桌面通知授权后，可弹出提醒通知。
@@ -51,6 +52,7 @@ MarketWatch/
   src/server/market-data.js    行情源接入、代码标准化、演示数据兜底
   src/server/rules.js          提醒规则引擎
   src/server/trading.js        纸面交易订单模型和账户更新
+  src/server/risk-controls.js  交易风控硬规则
   src/server/agent-tools.js    Agent 工具权限表
   src/server/audit-log.js      审计日志追加逻辑
   src/server/store.js          JSON 本地存储
@@ -70,6 +72,9 @@ MarketWatch/
 - `GET /api/trading/account`：获取纸面账户、持仓、订单、审计日志。
 - `POST /api/trading/order-drafts`：创建候选订单草稿，默认用于 Agent 建议。
 - `POST /api/trading/orders`：执行纸面订单。`source=AGENT` 时必须传 `confirm=true`。
+- `GET /api/trading/risk-controls`：查看当前风控配置。
+- `PATCH /api/trading/risk-controls`：更新风控配置。
+- `POST /api/trading/kill-switch`：开启或关闭紧急停止。
 - `GET /api/agent/tools`：查看 Agent 工具权限表。
 
 ## 自动交易目标架构

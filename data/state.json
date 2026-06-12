@@ -17,6 +17,14 @@
       "orders": [],
       "orderDrafts": []
     },
+    "riskControls": {
+      "autoExecutionEnabled": false,
+      "killSwitchEnabled": false,
+      "maxOrderAmount": 50000,
+      "maxPositionQuantity": 100000,
+      "blacklist": [],
+      "blockNonTradingHours": false
+    },
     "auditLog": []
   }
 }

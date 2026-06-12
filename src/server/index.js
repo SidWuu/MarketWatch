@@ -6,6 +6,7 @@ import { extname, join, normalize } from "node:path";
 import { appendAuditEvent } from "./audit-log.js";
 import { listAgentToolPolicies, requireAgentPermission } from "./agent-tools.js";
 import { fetchQuotes, normalizeSymbol } from "./market-data.js";
+import { evaluateRiskControls, updateRiskControls } from "./risk-controls.js";
 import { evaluateRules, listRuleTypes } from "./rules.js";
 import { JsonStore } from "./store.js";
 import { createOrderDraft, executePaperOrder, normalizeOrderInput, summarizeAccount } from "./trading.js";
@@ -90,8 +91,41 @@ const server = createServer(async (request, response) => {
     if (url.pathname === "/api/trading/account" && request.method === "GET") {
       return sendJson(response, {
         account: summarizeAccount(state.trading.paperAccount, lastQuotes),
+        riskControls: state.trading.riskControls,
         auditLog: state.trading.auditLog
       });
+    }
+
+    if (url.pathname === "/api/trading/risk-controls" && request.method === "GET") {
+      return sendJson(response, { riskControls: state.trading.riskControls });
+    }
+
+    if (url.pathname === "/api/trading/risk-controls" && request.method === "PATCH") {
+      const body = await readJson(request);
+      state.trading.riskControls = updateRiskControls(state.trading.riskControls, body);
+      state = appendAuditEvent(state, {
+        actor: "UI",
+        action: "RISK_CONTROLS_UPDATE",
+        payload: body,
+        result: state.trading.riskControls
+      });
+      state = await store.save(state);
+      return sendJson(response, { riskControls: state.trading.riskControls });
+    }
+
+    if (url.pathname === "/api/trading/kill-switch" && request.method === "POST") {
+      const body = await readJson(request);
+      state.trading.riskControls = updateRiskControls(state.trading.riskControls, {
+        killSwitchEnabled: body.enabled === true
+      });
+      state = appendAuditEvent(state, {
+        actor: "UI",
+        action: "KILL_SWITCH_SET",
+        payload: { enabled: body.enabled === true },
+        result: state.trading.riskControls
+      });
+      state = await store.save(state);
+      return sendJson(response, { riskControls: state.trading.riskControls });
     }
 
     if (url.pathname === "/api/trading/order-drafts" && request.method === "POST") {
@@ -119,6 +153,33 @@ const server = createServer(async (request, response) => {
       }
 
       const quote = findQuote(input.instrumentId);
+      const risk = evaluateRiskControls({
+        account: state.trading.paperAccount,
+        order: { ...input, confirm: body.confirm === true },
+        quote,
+        controls: state.trading.riskControls
+      });
+      if (!risk.allowed) {
+        const riskOrder = {
+          id: crypto.randomUUID(),
+          ...input,
+          status: "REJECTED",
+          filledQuantity: 0,
+          avgFillPrice: null,
+          rejectReason: risk.reason,
+          createdAt: new Date().toISOString()
+        };
+        state.trading.paperAccount.orders = [riskOrder, ...(state.trading.paperAccount.orders || [])];
+        state = appendAuditEvent(state, {
+          actor: input.source,
+          action: "RISK_REJECT",
+          payload: input,
+          result: riskOrder
+        });
+        state = await store.save(state);
+        return sendJson(response, { order: riskOrder, account: summarizeAccount(state.trading.paperAccount, lastQuotes) }, 409);
+      }
+
       const result = executePaperOrder(state.trading.paperAccount, input, quote);
       state.trading.paperAccount = result.account;
       state = appendAuditEvent(state, {
