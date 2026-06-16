@@ -7,6 +7,41 @@
     "300750",
     "600519"
   ],
+  "watchGroups": [
+    {
+      "id": "index",
+      "name": "指数",
+      "symbols": [
+        "sh000001",
+        "sz399001",
+        "sz399006"
+      ]
+    },
+    {
+      "id": "holding",
+      "name": "持仓",
+      "symbols": []
+    },
+    {
+      "id": "watch",
+      "name": "观察",
+      "symbols": [
+        "000001",
+        "300750",
+        "600519"
+      ]
+    },
+    {
+      "id": "short",
+      "name": "短线",
+      "symbols": []
+    },
+    {
+      "id": "long",
+      "name": "长线",
+      "symbols": []
+    }
+  ],
   "rules": [],
   "trading": {
     "paperAccount": {

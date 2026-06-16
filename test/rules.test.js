@@ -65,3 +65,36 @@ test("does not trigger stock rule from same-code index quote", () => {
 
   assert.equal(result.alerts.length, 0);
 });
+
+test("suppresses repeated alerts inside the silence window", () => {
+  const rule = {
+    id: "cooldown",
+    instrumentId: "0.000001",
+    type: "price-above",
+    threshold: 10,
+    enabled: true
+  };
+  const quote = { instrumentId: "0.000001", symbol: "000001", name: "平安银行", price: 10.01 };
+  const inactiveQuote = { ...quote, price: 9.99 };
+
+  const first = evaluateRules([rule], [quote], new Map(), {
+    now: new Date("2026-06-16T10:00:00+08:00"),
+    cooldownMs: 60000
+  });
+  const reset = evaluateRules([rule], [inactiveQuote], first.state, {
+    now: new Date("2026-06-16T10:00:10+08:00"),
+    cooldownMs: 60000
+  });
+  const suppressed = evaluateRules([rule], [quote], reset.state, {
+    now: new Date("2026-06-16T10:00:20+08:00"),
+    cooldownMs: 60000
+  });
+  const retriggered = evaluateRules([rule], [quote], suppressed.state, {
+    now: new Date("2026-06-16T10:01:01+08:00"),
+    cooldownMs: 60000
+  });
+
+  assert.equal(first.alerts.length, 1);
+  assert.equal(suppressed.alerts.length, 0);
+  assert.equal(retriggered.alerts.length, 1);
+});

@@ -4,6 +4,11 @@ const AGENT_TOOL_POLICIES = {
     requiresHumanConfirmation: false,
     description: "Read quotes, watchlist, alerts, and paper account state."
   },
+  "agent.briefing": {
+    permission: "ALLOW",
+    requiresHumanConfirmation: false,
+    description: "Generate read-only market briefing with local summary or DeepSeek."
+  },
   "rule.create": {
     permission: "CONFIRM",
     requiresHumanConfirmation: true,

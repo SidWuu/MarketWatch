@@ -7,6 +7,13 @@ import { cloneAccount, DEFAULT_PAPER_ACCOUNT } from "./trading.js";
 
 const DEFAULT_STATE = {
   watchlist: ["sh000001", "sz399001", "sz399006", "000001", "300750", "600519"],
+  watchGroups: [
+    { id: "index", name: "指数", symbols: ["sh000001", "sz399001", "sz399006"] },
+    { id: "holding", name: "持仓", symbols: [] },
+    { id: "watch", name: "观察", symbols: ["000001", "300750", "600519"] },
+    { id: "short", name: "短线", symbols: [] },
+    { id: "long", name: "长线", symbols: [] }
+  ],
   rules: [
     {
       id: "demo-pct-300750",
@@ -58,6 +65,7 @@ function sanitizeState(state) {
   const watchlist = dedupeWatchlist(state.watchlist || DEFAULT_STATE.watchlist);
   return {
     watchlist,
+    watchGroups: sanitizeWatchGroups(state.watchGroups, watchlist),
     rules: (state.rules || []).map((rule) => ({
       id: String(rule.id || crypto.randomUUID()),
       instrumentId: normalizeRuleInstrumentId(rule),
@@ -68,6 +76,36 @@ function sanitizeState(state) {
     })),
     trading: sanitizeTrading(state.trading)
   };
+}
+
+function sanitizeWatchGroups(groups, watchlist) {
+  const normalizedGroups = Array.isArray(groups)
+    ? groups.map((group) => ({
+      id: String(group.id || "").trim(),
+      name: String(group.name || group.id || "").trim(),
+      symbols: dedupeWatchlist(group.symbols || [])
+    })).filter((group) => group.id && group.name)
+    : [];
+
+  const byId = new Map(normalizedGroups.map((group) => [group.id, group]));
+  for (const group of DEFAULT_STATE.watchGroups) {
+    if (!byId.has(group.id)) {
+      byId.set(group.id, { ...group, symbols: [] });
+    }
+  }
+
+  if (!Array.isArray(groups)) {
+    const defaultById = new Map(DEFAULT_STATE.watchGroups.map((group) => [group.id, { ...group }]));
+    return DEFAULT_STATE.watchGroups.map((group) => ({
+      ...defaultById.get(group.id),
+      symbols: group.symbols.filter((symbol) => watchlist.includes(symbol))
+    }));
+  }
+
+  return [...byId.values()].map((group) => ({
+    ...group,
+    symbols: group.symbols.filter((symbol) => watchlist.includes(symbol))
+  }));
 }
 
 function sanitizeTrading(trading = DEFAULT_STATE.trading) {

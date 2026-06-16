@@ -102,7 +102,8 @@ export async function fetchQuotes(symbols, options = {}) {
 
   try {
     const url = buildEastmoneyUrl(uniqueSymbols);
-    const response = await fetch(url, {
+    const fetchImpl = options.fetchImpl || fetch;
+    const response = await fetchImpl(url, {
       signal: AbortSignal.timeout(options.timeoutMs ?? 4500),
       headers: {
         "user-agent": "MarketWatch/0.1"
@@ -130,6 +131,7 @@ function enrichQuotes(quotes, source) {
   return quotes.map((quote) => ({
     ...quote,
     source,
+    quality: "realtime",
     updatedAt: now
   }));
 }
@@ -145,6 +147,7 @@ function mergeMissingQuotes(symbols, quotes) {
     ...quotes,
     ...createDemoQuotes(missing, new Error("部分自选项未返回实时行情")).map((quote) => ({
       ...quote,
+      quality: "missing",
       warning: "部分自选项未返回实时行情，缺失行已用演示数据占位"
     }))
   ];
@@ -181,6 +184,7 @@ function createDemoQuotes(symbols, error) {
       speed: round2(Math.cos(now / 9000 + index) * 1.2),
       sector: base.sector,
       source: "demo",
+      quality: "demo",
       warning: `行情源不可用，已切换演示数据：${error.message}`,
       updatedAt: new Date().toISOString()
     };

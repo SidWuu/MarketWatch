@@ -15,7 +15,33 @@ test("creates default state on first load", async () => {
     const saved = JSON.parse(await readFile(file, "utf8"));
 
     assert.ok(state.watchlist.includes("sh000001"));
+    assert.deepEqual(state.watchGroups.map((group) => group.id), ["index", "holding", "watch", "short", "long"]);
     assert.deepEqual(saved.watchlist, state.watchlist);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("normalizes watch groups and keeps symbols grouped by instrument id", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "market-watch-store-"));
+  try {
+    const store = new JsonStore(join(dir, "state.json"));
+    const state = await store.save({
+      watchlist: ["sh000001", "000001", "300750"],
+      watchGroups: [
+        { id: "index", name: "指数", symbols: ["sh000001", "SH000001"] },
+        { id: "watch", name: "观察", symbols: ["300750"] }
+      ],
+      rules: []
+    });
+
+    assert.deepEqual(state.watchGroups, [
+      { id: "index", name: "指数", symbols: ["sh000001"] },
+      { id: "watch", name: "观察", symbols: ["300750"] },
+      { id: "holding", name: "持仓", symbols: [] },
+      { id: "short", name: "短线", symbols: [] },
+      { id: "long", name: "长线", symbols: [] }
+    ]);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

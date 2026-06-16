@@ -25,6 +25,7 @@
           <h2>自选盯盘</h2>
           <form id="watchForm" class="inline-form">
             <input id="watchSymbol" autocomplete="off" placeholder="代码 / sh000001" />
+            <select id="watchGroup"></select>
             <button title="加入自选">+</button>
           </form>
         </div>
@@ -46,6 +47,35 @@
       </section>
 
       <aside class="side">
+        <section class="account-panel">
+          <div class="panel-head">
+            <h2>纸面账户</h2>
+            <button id="killSwitchButton" class="icon-button small danger" title="紧急停止">停</button>
+          </div>
+          <div class="account-grid">
+            <div>
+              <span>现金</span>
+              <strong id="paperCash">-</strong>
+            </div>
+            <div>
+              <span>权益</span>
+              <strong id="paperEquity">-</strong>
+            </div>
+            <div>
+              <span>持仓市值</span>
+              <strong id="paperMarketValue">-</strong>
+            </div>
+            <div>
+              <span>自动执行</span>
+              <label class="switch">
+                <input id="autoExecutionToggle" type="checkbox" />
+                <span></span>
+              </label>
+            </div>
+          </div>
+          <div id="positionList" class="position-list"></div>
+        </section>
+
         <section class="rule-panel">
           <div class="panel-head">
             <h2>提醒规则</h2>
@@ -59,6 +89,14 @@
           <div id="ruleList" class="rule-list"></div>
         </section>
 
+        <section class="agent-panel">
+          <div class="panel-head">
+            <h2>AI 摘要</h2>
+            <button id="agentBriefingButton" class="icon-button small" title="生成只读摘要">析</button>
+          </div>
+          <div id="agentBriefing" class="briefing-box">暂无摘要</div>
+        </section>
+
         <section class="event-panel">
           <div class="panel-head">
             <h2>异动事件</h2>
@@ -68,6 +106,10 @@
         </section>
       </aside>
     </main>
+
+    <footer class="disclaimer">
+      本工具仅用于个人盯盘、模拟交易和复盘辅助，不构成投资建议，不提供荐股、代客理财或收益承诺。实盘交易前必须自行确认账户权限、市场规则和合规要求。
+    </footer>
 
     <script src="/app.js" type="module"></script>
   </body>

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildEastmoneyUrl, normalizeSymbol, parseEastmoneyQuoteList } from "../src/server/market-data.js";
+import { buildEastmoneyUrl, fetchQuotes, normalizeSymbol, parseEastmoneyQuoteList } from "../src/server/market-data.js";
 
 test("normalizes common A-share and index symbols to Eastmoney secids", () => {
   assert.equal(normalizeSymbol("000001").secid, "0.000001");
@@ -55,4 +55,28 @@ test("parses Eastmoney quote rows and filters unavailable prices", () => {
     speed: 1.1,
     sector: "银行"
   });
+});
+
+test("marks quote quality for realtime, missing, and demo fallback rows", async () => {
+  const quotes = await fetchQuotes(["000001", "300750"], {
+    fetchImpl: async () => ({
+      ok: true,
+      json: async () => ({
+        data: {
+          diff: [
+            { f13: 0, f12: "000001", f14: "平安银行", f2: 10.12, f3: 1.2, f4: 0.12, f5: 123456, f6: 456789000, f10: 1.1, f100: "银行" }
+          ]
+        }
+      })
+    })
+  });
+  const demo = await fetchQuotes(["000001"], {
+    fetchImpl: async () => {
+      throw new Error("offline");
+    }
+  });
+
+  assert.equal(quotes.find((quote) => quote.instrumentId === "0.000001").quality, "realtime");
+  assert.equal(quotes.find((quote) => quote.instrumentId === "0.300750").quality, "missing");
+  assert.equal(demo[0].quality, "demo");
 });

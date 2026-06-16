@@ -44,10 +44,13 @@ export function listRuleTypes() {
   }));
 }
 
-export function evaluateRules(rules, quotes, previousState = new Map()) {
+export function evaluateRules(rules, quotes, previousState = new Map(), options = {}) {
   const quotesByInstrumentId = new Map(quotes.map((quote) => [quote.instrumentId ?? quote.symbol, quote]));
   const nextState = new Map(previousState);
   const alerts = [];
+  const now = options.now || new Date();
+  const nowMs = now.getTime();
+  const cooldownMs = Number(options.cooldownMs || 0);
 
   for (const rule of rules) {
     if (!rule.enabled) {
@@ -64,11 +67,14 @@ export function evaluateRules(rules, quotes, previousState = new Map()) {
     }
 
     const active = definition.predicate(quote, threshold);
-    const wasActive = nextState.get(rule.id) === true;
+    const previous = nextState.get(rule.id);
+    const wasActive = previous === true || previous?.active === true;
+    const lastAlertAt = Number(previous?.lastAlertAt || 0);
+    const inCooldown = cooldownMs > 0 && lastAlertAt > 0 && nowMs - lastAlertAt < cooldownMs;
 
-    if (active && !wasActive) {
+    if (active && !wasActive && !inCooldown) {
       alerts.push({
-        id: `${rule.id}-${Date.now()}`,
+        id: `${rule.id}-${nowMs}`,
         ruleId: rule.id,
         instrumentId: quote.instrumentId,
         symbol: quote.symbol,
@@ -76,12 +82,16 @@ export function evaluateRules(rules, quotes, previousState = new Map()) {
         message: definition.describe(quote, threshold),
         severity: definition.severity,
         quote,
-        createdAt: new Date().toISOString()
+        createdAt: now.toISOString()
       });
     }
 
-    if (active) {
-      nextState.set(rule.id, true);
+    if (active && !inCooldown) {
+      nextState.set(rule.id, { active: true, lastAlertAt: alerts.at(-1)?.ruleId === rule.id ? nowMs : lastAlertAt });
+    } else if (active) {
+      nextState.set(rule.id, { active: false, lastAlertAt });
+    } else if (lastAlertAt > 0) {
+      nextState.set(rule.id, { active: false, lastAlertAt });
     } else {
       nextState.delete(rule.id);
     }
